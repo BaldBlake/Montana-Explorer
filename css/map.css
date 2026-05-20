@@ -167,22 +167,166 @@ body.map-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans
 }
 .signin-hint a { color: #0b3a73; font-weight: 700; }
 
-/* ---------- Mobile map adjustments ---------- */
+/* =============================================================
+   MOBILE V2 chrome — only renders ≤720px.
+   Desktop styling above is untouched.
+   ============================================================= */
+.m-map-chrome { display: none; }
+
 @media (max-width: 720px) {
-  .title-bar {
-    top: 6px; padding: 5px 10px;
-    font-size: 12px; max-width: 92vw; text-align: center;
-  }
-  .search-control input { width: 150px; font-size: 16px; padding: 8px 10px; }
-  .search-control button { padding: 8px 12px; }
-  .search-control .hint { display: none; } /* radar/forecast timestamps hidden on phones */
-  .legend { font-size: 11px; max-width: 180px; padding: 5px 8px; }
-  .legend[open] { padding: 8px 10px; }
-  .leaflet-control-layers-expanded { font-size: 14px; max-width: 86vw; }
-  .leaflet-control-layers label { padding: 4px 0; }
-  .layer-master-row button { padding: 10px 8px; }
+  /* Hide the desktop map chrome on mobile */
+  .title-bar { display: none; }
+  .leaflet-control-layers,
+  .leaflet-control-zoom,
+  .legend,
+  .search-control { display: none !important; }
+
+  /* Mobile popup sizing only */
   .popup-content { min-width: 220px; max-width: 86vw; }
   .popup-actions button { padding: 8px 12px; font-size: 13px; min-height: 36px; }
-  /* Leaflet's default zoom buttons are tiny — bump them */
-  .leaflet-touch .leaflet-bar a { width: 36px; height: 36px; line-height: 36px; }
+
+  /* Activate the mobile chrome */
+  .m-map-chrome { display: block; }
+
+  /* ----- Top bar: floating search pill + horizontal chip row ----- */
+  .m-top-bar {
+    position: absolute; top: 10px; left: 10px; right: 10px;
+    z-index: 500;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none; /* let map drag through gaps */
+  }
+  .m-search-pill,
+  .m-chips { pointer-events: auto; }
+
+  .m-search-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(253,252,247,0.96);
+    border: 1.5px solid var(--mt-border, #e5e1d8);
+    border-radius: 999px;
+    padding: 7px 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .m-search-ico { color: #6b7280; font-size: 16px; flex-shrink: 0; line-height: 1; }
+  .m-search-pill input {
+    flex: 1; border: 0; outline: none; background: transparent;
+    font-size: 16px;  /* prevents iOS auto-zoom */
+    font-family: inherit; color: #1f2933;
+    min-width: 0;
+  }
+
+  .m-chips {
+    display: flex; gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;  /* Firefox */
+    padding-bottom: 2px;
+  }
+  .m-chips::-webkit-scrollbar { display: none; }
+  .m-chip {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(253,252,247,0.96);
+    border: 1.5px solid var(--mt-border, #e5e1d8);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 600;
+    color: #1f2933;
+    cursor: pointer; white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    font-family: inherit;
+  }
+  .m-chip.active {
+    background: #2a6f4d; color: #fff;
+    border-color: #2a6f4d;
+  }
+  .m-chip.active .m-chip-ico { color: #fff !important; }
+  .m-chip-ico { font-size: 14px; line-height: 1; }
+
+  /* ----- Floating action button (drop pin at map center) ----- */
+  .m-fab {
+    position: absolute; bottom: 88px; right: 16px;
+    z-index: 500;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: #2a6f4d; color: #fff;
+    border: 2px solid #fff;
+    font-size: 26px; font-weight: 700; line-height: 1;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    cursor: pointer; font-family: inherit;
+  }
+  .m-fab:active { background: #1f5b3e; }
+
+  /* ----- Bottom sheet (collapsed by default, taps to expand) ----- */
+  .m-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    z-index: 500;
+    background: #fff;
+    border-top: 2px solid var(--mt-border, #e5e1d8);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
+    max-height: 75vh;
+    display: flex; flex-direction: column;
+    transform: translateY(calc(100% - 62px)); /* collapsed: show only handle + header */
+    transition: transform 0.25s ease-out;
+  }
+  .m-sheet.expanded { transform: translateY(0); }
+
+  .m-sheet-handle {
+    cursor: pointer;
+    padding: 8px 14px 6px;
+    user-select: none; -webkit-user-select: none;
+    flex-shrink: 0;
+  }
+  .m-sheet-grip {
+    width: 36px; height: 4px;
+    background: #d0d0c8; border-radius: 2px;
+    margin: 0 auto 8px;
+  }
+  .m-sheet-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 0 6px;
+  }
+  .m-sheet-title { font-weight: 700; font-size: 14px; }
+  .m-sheet:not(.expanded) .m-sheet-toggle::before { content: '↑'; color: #6b7280; }
+  .m-sheet.expanded .m-sheet-toggle::before       { content: '↓'; color: #6b7280; }
+
+  .m-sheet-body {
+    overflow-y: auto;
+    padding: 4px 14px 18px;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+  .m-sheet-body h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #6b7280; margin: 10px 0 4px; font-weight: 700;
+  }
+
+  .m-layer-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--mt-border, #e5e1d8);
+  }
+  .m-layer-row:last-child { border-bottom: 0; }
+  .m-layer-row-label {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 600;
+  }
+  .m-layer-row-ico {
+    width: 18px; text-align: center; flex-shrink: 0;
+    font-size: 14px; line-height: 1;
+  }
+  .m-toggle {
+    width: 38px; height: 22px; border-radius: 999px;
+    background: #ddd; border: 1px solid var(--mt-border, #e5e1d8);
+    position: relative; cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .m-toggle::after {
+    content: ''; position: absolute; top: 1px; left: 1px;
+    width: 18px; height: 18px; border-radius: 50%; background: #fff;
+    transition: left 0.15s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .m-toggle.on { background: #2a6f4d; border-color: #2a6f4d; }
+  .m-toggle.on::after { left: 17px; }
 }

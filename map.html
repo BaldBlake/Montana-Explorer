@@ -25,6 +25,43 @@
 <div id="map-wrap">
   <div class="title-bar">Right-click (or long-press on mobile) anywhere for details</div>
   <div id="map"></div>
+
+  <!-- =====================================================================
+       MOBILE-ONLY V2 chrome (display: none unless ≤720px)
+       Floating search + filter chips · FAB · bottom sheet for layers
+       ===================================================================== -->
+  <div class="m-map-chrome">
+    <div class="m-top-bar">
+      <div class="m-search-pill">
+        <span class="m-search-ico">⌕</span>
+        <input type="search" id="m-search-input" placeholder="Town or lat, lng…" autocomplete="off">
+      </div>
+      <div class="m-chips" id="m-chips">
+        <button class="m-chip" data-layer-key="blm"><span class="m-chip-ico" style="color:#b8860b">▮</span> BLM</button>
+        <button class="m-chip" data-layer-key="bears"><span class="m-chip-ico" style="color:#c0398d">●</span> Bears</button>
+        <button class="m-chip" data-layer-key="camps"><span class="m-chip-ico" style="color:#2a6f4d">▲</span> Camps</button>
+        <button class="m-chip" data-layer-key="radar"><span class="m-chip-ico" style="color:#3388ff">◎</span> Radar</button>
+        <button class="m-chip" data-layer-key="storm"><span class="m-chip-ico" style="color:#5c8fc4">◌</span> Storm</button>
+        <button class="m-chip" data-layer-key="wind"><span class="m-chip-ico" style="color:#666">➤</span> Wind</button>
+      </div>
+    </div>
+
+    <button class="m-fab" id="m-fab" aria-label="Drop a pin at the map center">＋</button>
+
+    <div class="m-sheet" id="m-sheet">
+      <div class="m-sheet-handle" id="m-sheet-handle">
+        <div class="m-sheet-grip"></div>
+        <div class="m-sheet-header">
+          <span class="m-sheet-title">Layers · <span id="m-layers-on">0</span> on</span>
+          <span class="m-sheet-toggle"></span>
+        </div>
+      </div>
+      <div class="m-sheet-body">
+        <h3>All layers</h3>
+        <div class="m-layer-rows" id="m-layer-rows"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

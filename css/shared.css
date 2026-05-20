@@ -352,6 +352,137 @@ h3 { font-size: 1.15rem; }
   .site-footer { padding: 20px 14px; font-size: .8rem; }
 }
 
+/* =============================================================
+   MOBILE LANDING — V2 · Map-first (from design pack wireframes)
+   Hidden on desktop, visible only ≤ 720px. Desktop landing is
+   reciprocally hidden on mobile via .desktop-landing rule below.
+   ============================================================= */
+.mobile-landing { display: none; }
+
+.mobile-landing .m-section {
+  padding: 16px 16px;
+  border-bottom: 1px dashed var(--mt-border);
+}
+.mobile-landing .m-section:last-child { border-bottom: 0; }
+.mobile-landing .m-section h2 {
+  font-size: 1.1rem;
+  margin: 0 0 10px;
+}
+
+/* Map-preview block */
+.mobile-landing .m-map-section { padding: 14px 14px 18px; }
+.mobile-landing .m-map-preview {
+  position: relative;
+  display: block;
+  height: 220px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--mt-border);
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(216,224,210,0.85) 0%, rgba(232,221,176,0.85) 60%, rgba(216,224,210,0.85) 100%),
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.025) 0 1px, transparent 1px 14px),
+    repeating-linear-gradient(-45deg, rgba(0,0,0,0.025) 0 1px, transparent 1px 14px);
+  box-shadow: var(--mt-shadow);
+}
+.mobile-landing .m-map-pin {
+  position: absolute;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--mt-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transform: translate(-50%, -50%);
+}
+.mobile-landing .m-map-tap-label {
+  position: absolute;
+  bottom: 10px; right: 12px;
+  background: rgba(253,252,247,0.95);
+  border: 1px solid var(--mt-border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--mt-muted);
+}
+
+/* Popular destinations list */
+.mobile-landing .m-pin-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.mobile-landing .m-pin-list li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--mt-border);
+  border-radius: 8px;
+}
+.mobile-landing .m-pin-marker { font-size: 1rem; flex: 0 0 auto; }
+.mobile-landing .m-pin-name { font-weight: 700; font-size: 0.95rem; flex: 1; }
+.mobile-landing .m-pin-meta {
+  font-size: 0.78rem; color: var(--mt-muted);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  flex: 0 0 auto;
+}
+
+/* Quick-action 2×2 grid */
+.mobile-landing .m-qa-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.mobile-landing .m-qa-tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px;
+  padding: 18px 8px;
+  background: #fff;
+  border: 1px solid var(--mt-border);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--mt-fg);
+  box-shadow: var(--mt-shadow);
+}
+.mobile-landing .m-qa-tile:hover { text-decoration: none; background: var(--mt-chip-bg, #f0eee8); }
+.mobile-landing .m-qa-icon { font-size: 1.6rem; line-height: 1; }
+.mobile-landing .m-qa-label { font-weight: 700; font-size: 0.9rem; }
+
+/* About FAQ accordion */
+.mobile-landing .m-faq {
+  background: #fff;
+  border: 1px solid var(--mt-border);
+  border-radius: 8px;
+  padding: 4px 12px;
+  margin-bottom: 6px;
+}
+.mobile-landing .m-faq summary {
+  cursor: pointer;
+  padding: 8px 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  list-style: none;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.mobile-landing .m-faq summary::after {
+  content: '+';
+  color: var(--mt-muted);
+  font-weight: 400;
+  font-size: 1.15rem;
+}
+.mobile-landing .m-faq[open] summary::after { content: '−'; }
+.mobile-landing .m-faq summary::-webkit-details-marker { display: none; }
+.mobile-landing .m-faq p {
+  margin: 6px 0 12px;
+  font-size: 0.9rem;
+  color: var(--mt-fg);
+}
+.mobile-landing .m-cta-spaced { margin-top: 14px; }
+
+/* ---------- Visibility swap at the mobile breakpoint ---------- */
+@media (max-width: 720px) {
+  .desktop-landing { display: none !important; }
+  .mobile-landing { display: block; }
+}
+
 /* ---------- Tiny phones ≤ 380px ---------- */
 @media (max-width: 380px) {
   h1 { font-size: 1.7rem; }

@@ -1329,3 +1329,125 @@
       if (el) { el.textContent = 'could not determine'; el.classList.remove('loading'); }
     });
   });
+
+  // =====================================================================
+  // Mobile V2 chrome — only activates on screens ≤ 720px.
+  // Chip row + FAB + bottom sheet, driven off the existing layer vars.
+  // =====================================================================
+  if (window.matchMedia('(max-width: 720px)').matches) {
+    // Chip key → existing Leaflet layer reference
+    const chipLayers = {
+      blm:   blmTiles,
+      bears: distribLayer,
+      camps: campsitesLayer,
+      radar: radarLayer,
+      storm: stormLayer,
+      wind:  windGroup,
+    };
+
+    // All layers exposed in the expanded sheet
+    const sheetLayers = [
+      { key:'blm',       icon:'▮', color:'#b8860b', name:'BLM land',                    layer: blmTiles },
+      { key:'blm-lbl',   icon:'#', color:'#a67c00', name:'BLM labels (zoom ≥ 9)',       layer: blmLabelsLayer },
+      { key:'bears',     icon:'●', color:'#807dba', name:'Bear distribution',           layer: distribLayer },
+      { key:'occupied',  icon:'●', color:'#dd3497', name:'Grizzly occupied range',      layer: occupiedLayer },
+      { key:'recovery',  icon:'●', color:'#a50f15', name:'Grizzly Recovery Zones',      layer: recoveryLayer },
+      { key:'camps',     icon:'▲', color:'#2a6f4d', name:'Campsites (USFS)',            layer: campsitesLayer },
+      { key:'hiking',    icon:'∼', color:'#5a3a1e', name:'Hiking & backpacking trails', layer: hikingTrailsLayer },
+      { key:'ohv',       icon:'∼', color:'#d35400', name:'Off-road / OHV trails',       layer: ohvTrailsLayer },
+      { key:'radar',     icon:'◎', color:'#3388ff', name:'Live radar (NOAA)',           layer: radarLayer },
+      { key:'storm',     icon:'◌', color:'#5c8fc4', name:'Storm forecast (next 4 hr)',  layer: stormLayer },
+      { key:'wind',      icon:'➤', color:'#666',    name:'Wind animation',              layer: windGroup },
+      { key:'temps',     icon:'°', color:'#5c8fc4', name:'Live city temperatures',      layer: wxBadgeLayer },
+      { key:'pins',      icon:'★', color:'#2a6f4d', name:'Saved pins',                  layer: pinsLayer },
+      { key:'pop',       icon:'·', color:'#fe9929', name:'Population (cities)',         layer: populationLayer },
+    ];
+
+    // ----- Build sheet rows -----
+    const rowsEl = document.getElementById('m-layer-rows');
+    if (rowsEl) {
+      sheetLayers.forEach(spec => {
+        const row = document.createElement('div');
+        row.className = 'm-layer-row';
+        row.innerHTML = `
+          <span class="m-layer-row-label">
+            <span class="m-layer-row-ico" style="color:${spec.color}">${spec.icon}</span>
+            ${spec.name}
+          </span>
+          <span class="m-toggle" data-mtog="${spec.key}"></span>
+        `;
+        const tog = row.querySelector('.m-toggle');
+        tog.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (map.hasLayer(spec.layer)) map.removeLayer(spec.layer);
+          else spec.layer.addTo(map);
+        });
+        rowsEl.appendChild(row);
+      });
+    }
+
+    function syncStates() {
+      // Filter chips (top of map)
+      document.querySelectorAll('.m-chip[data-layer-key]').forEach(chip => {
+        const layer = chipLayers[chip.dataset.layerKey];
+        chip.classList.toggle('active', !!(layer && map.hasLayer(layer)));
+      });
+      // Sheet toggles
+      document.querySelectorAll('.m-toggle[data-mtog]').forEach(t => {
+        const spec = sheetLayers.find(s => s.key === t.dataset.mtog);
+        if (spec) t.classList.toggle('on', map.hasLayer(spec.layer));
+      });
+      // "Layers · N on" counter
+      const onCount = sheetLayers.filter(s => map.hasLayer(s.layer)).length;
+      const cEl = document.getElementById('m-layers-on');
+      if (cEl) cEl.textContent = String(onCount);
+    }
+
+    // ----- Chip clicks toggle their corresponding layer -----
+    document.querySelectorAll('.m-chip[data-layer-key]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const layer = chipLayers[chip.dataset.layerKey];
+        if (!layer) return;
+        if (map.hasLayer(layer)) map.removeLayer(layer);
+        else layer.addTo(map);
+      });
+    });
+
+    map.on('overlayadd overlayremove layeradd layerremove', syncStates);
+    syncStates();
+
+    // ----- Sheet expand / collapse -----
+    const sheetEl  = document.getElementById('m-sheet');
+    const handleEl = document.getElementById('m-sheet-handle');
+    if (sheetEl && handleEl) {
+      handleEl.addEventListener('click', () => sheetEl.classList.toggle('expanded'));
+      // Collapse when the user opens a popup so it doesn't hide it
+      map.on('popupopen', () => sheetEl.classList.remove('expanded'));
+    }
+
+    // ----- FAB drops a pin at the current map center -----
+    const fab = document.getElementById('m-fab');
+    if (fab) {
+      fab.addEventListener('click', () => {
+        const c = map.getCenter();
+        if (!isInMontana(c.lat, c.lng)) {
+          alert('Pan into Montana to drop a pin here.');
+          return;
+        }
+        // Trigger the same popup the right-click flow uses
+        map.fire('contextmenu', { latlng: c });
+      });
+    }
+
+    // ----- Mobile search → reuse the existing search-control logic -----
+    const mInput = document.getElementById('m-search-input');
+    if (mInput) {
+      mInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const origInput = document.getElementById('mt-search');
+        const goBtn = document.getElementById('mt-search-go');
+        if (origInput) origInput.value = mInput.value;
+        if (goBtn) goBtn.click();
+      });
+    }
+  }
