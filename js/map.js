@@ -652,8 +652,8 @@
         ${pin.label ? `<div class="row"><span class="label">Label:</span> ${pin.label}</div>` : ''}
         <div class="row"><small style="color:#888">Saved ${dateStr}</small></div>
         <div class="popup-actions">
-          <button onclick="window.__inspectPin('${pin.id}')">Inspect</button>
-          <button class="danger" onclick="window.__deletePin('${pin.id}')">Delete</button>
+          <button data-action="inspect-pin" data-id="${pin.id}">Inspect</button>
+          <button class="danger" data-action="delete-pin" data-id="${pin.id}">Delete</button>
         </div>
       </div>
     `);
@@ -1002,13 +1002,33 @@
 
   async function getWeather(lat, lng) {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
-                `&current_weather=true&temperature_unit=fahrenheit&windspeed_unit=mph` +
-                `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+                `&current=temperature_2m,wind_speed_10m,wind_direction_10m,weather_code` +
+                `&temperature_unit=fahrenheit&wind_speed_unit=mph` +
+                `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
                 `&timezone=auto&forecast_days=7`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('weather fetch failed');
+    let r;
+    try { r = await fetch(url); }
+    catch (e) { throw new Error('network error: ' + e.message); }
+    if (r.status === 429) throw new Error('Open-Meteo rate limit hit — try again in a minute');
+    if (!r.ok) throw new Error(`Open-Meteo returned ${r.status}`);
     const j = await r.json();
-    return { current: j.current_weather, daily: j.daily || null };
+    // Normalize new-API response into the shape the rest of the code expects.
+    const cur = j.current ? {
+      temperature: j.current.temperature_2m,
+      windspeed:   j.current.wind_speed_10m,
+      winddirection: j.current.wind_direction_10m,
+      weathercode: j.current.weather_code
+    } : (j.current_weather || null);
+    const dailyRaw = j.daily || null;
+    // The new API uses weather_code (snake_case); rename so existing code works.
+    const daily = dailyRaw ? {
+      time: dailyRaw.time,
+      weathercode: dailyRaw.weather_code || dailyRaw.weathercode,
+      temperature_2m_max: dailyRaw.temperature_2m_max,
+      temperature_2m_min: dailyRaw.temperature_2m_min,
+      precipitation_probability_max: dailyRaw.precipitation_probability_max
+    } : null;
+    return { current: cur, daily };
   }
   const wxCodes = {
     0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',
@@ -1021,6 +1041,67 @@
     85:'Snow showers',86:'Heavy snow showers',
     95:'Thunderstorm',96:'T-storm w/ hail',99:'Severe t-storm'
   };
+
+  // ============================================================
+  // Custom long-press → fire contextmenu (mobile-friendly)
+  // Leaflet's built-in contextmenu doesn't always fire on touch
+  // devices, so we implement it ourselves with touchstart/end.
+  // ============================================================
+  (function () {
+    const mapEl = map.getContainer();
+    const PRESS_MS = 500;
+    const MOVE_TOL = 12; // px
+    let pressTimer = null;
+    let startX = 0, startY = 0, startLatLng = null;
+
+    function clear() {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    }
+    mapEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { clear(); return; }
+      const t = e.touches[0];
+      startX = t.clientX; startY = t.clientY;
+      const rect = mapEl.getBoundingClientRect();
+      const pt = L.point(t.clientX - rect.left, t.clientY - rect.top);
+      try { startLatLng = map.containerPointToLatLng(pt); }
+      catch (e) { startLatLng = null; return; }
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        if (startLatLng) map.fire('contextmenu', { latlng: startLatLng });
+      }, PRESS_MS);
+    }, { passive: true });
+    mapEl.addEventListener('touchmove', (e) => {
+      if (!pressTimer || !e.touches[0]) return;
+      const t = e.touches[0];
+      if (Math.abs(t.clientX - startX) > MOVE_TOL ||
+          Math.abs(t.clientY - startY) > MOVE_TOL) clear();
+    }, { passive: true });
+    mapEl.addEventListener('touchend',   clear, { passive: true });
+    mapEl.addEventListener('touchcancel', clear, { passive: true });
+  })();
+
+  // ============================================================
+  // Popup button handlers — use delegation so they survive
+  // popup re-renders and work reliably on mobile.
+  // ============================================================
+  map.on('popupopen', (e) => {
+    const root = e.popup.getElement(); if (!root) return;
+    root.querySelectorAll('[data-action]').forEach(btn => {
+      if (btn._mtWired) return;
+      btn._mtWired = true;
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const act = btn.dataset.action;
+        if (act === 'save-pin') {
+          window.__addPin(parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lng));
+        } else if (act === 'delete-pin') {
+          window.__deletePin(btn.dataset.id);
+        } else if (act === 'inspect-pin') {
+          window.__inspectPin(btn.dataset.id);
+        }
+      });
+    });
+  });
 
   // ============================================================
   // Right-click handler (left-click does nothing / just closes popups)
@@ -1058,7 +1139,7 @@
             <span id="bear-line" class="loading">checking…</span>
           </div>
           <div class="popup-actions">
-            <button onclick="window.__addPin(${lat}, ${lng})">📌 Save pin here</button>
+            <button data-action="save-pin" data-lat="${lat}" data-lng="${lng}">📌 Save pin here</button>
           </div>
           ${useSupabasePins()
             ? ''
@@ -1081,18 +1162,27 @@
       const row = document.getElementById('wx-forecast-row');
       const grid = document.getElementById('wx-forecast');
       if (row && grid && d && d.time && d.time.length) {
-        const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const todayStr = new Date().toISOString().slice(0,10);
+        const dayNames   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        // Today in LOCAL time (not UTC) — Open-Meteo returns local-tz dates.
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         const html = d.time.map((iso, i) => {
-          const dt = new Date(iso + 'T12:00:00');
-          const dow = dayNames[dt.getDay()];
-          const hi = Math.round(d.temperature_2m_max[i]);
-          const lo = Math.round(d.temperature_2m_min[i]);
+          const dt   = new Date(iso + 'T12:00:00');
+          const dow  = dayNames[dt.getDay()];
+          const mon  = monthNames[dt.getMonth()];
+          const dom  = dt.getDate();
+          const hi   = Math.round(d.temperature_2m_max[i]);
+          const lo   = Math.round(d.temperature_2m_min[i]);
           const code = d.weathercode[i];
-          const pp = d.precipitation_probability_max ? d.precipitation_probability_max[i] : null;
+          const pp   = d.precipitation_probability_max ? d.precipitation_probability_max[i] : null;
           const isToday = iso === todayStr;
+          // Show day-of-week (or "Today" for today) and the date together
+          // so there is no ambiguity even if the timezone math is off.
+          const dowLabel = isToday ? `Today · ${dow}` : dow;
           return `<div class="day${isToday ? ' today' : ''}">
-            <div class="dow">${isToday ? 'Today' : dow}</div>
+            <div class="dow">${dowLabel}</div>
+            <div class="date">${mon} ${dom}</div>
             <div class="icon" title="${wxCodes[code] || ''}">${wxIcon(code)}</div>
             <div><span class="hi">${hi}°</span> / <span class="lo">${lo}°</span></div>
             ${pp != null ? `<div class="precip">${pp}%💧</div>` : ''}
@@ -1101,9 +1191,13 @@
         grid.innerHTML = html;
         row.style.display = '';
       }
-    }).catch(() => {
+    }).catch((err) => {
+      console.warn('Weather fetch failed:', err);
       const el = document.getElementById('wx-line');
-      if (el) { el.textContent = 'unavailable'; el.classList.remove('loading'); }
+      if (el) {
+        el.textContent = (err && err.message) ? err.message : 'unavailable';
+        el.classList.remove('loading');
+      }
     });
 
     checkBLM(lat, lng).then(res => {
