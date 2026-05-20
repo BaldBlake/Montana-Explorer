@@ -128,6 +128,15 @@ body.map-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans
 .popup-actions button.danger { background: #b00020; }
 .popup-actions button:hover { filter: brightness(0.92); }
 
+.popup-content .wx-btn {
+  width: 100%;
+  background: #e7f0ff; color: #0b3a73;
+  border: 1px solid #9ec0ff; border-radius: 6px;
+  padding: 8px 10px; font-size: 12px; font-weight: 700;
+  cursor: pointer;
+}
+.popup-content .wx-btn:hover { background: #d4e3fc; }
+
 .forecast {
   display: flex; gap: 4px; margin-top: 6px;
   overflow-x: auto; padding-bottom: 4px;

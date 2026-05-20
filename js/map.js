@@ -266,6 +266,7 @@
     if (stormHover && map.hasLayer(stormHover)) map.removeLayer(stormHover);
   });
 
+  let lastStormFetch = 0;
   async function refreshStormForecast() {
     // Build full lat/lng list (row-major, north→south, west→east)
     const allLats = [], allLngs = [];
@@ -275,6 +276,14 @@
         allLngs.push((STORM_LO1 + xi * STORM_DX).toFixed(3));
       }
     }
+    // Cache hit? Paint immediately while we refresh in background.
+    const cached = cacheGet('mt-storm-v1', 20 * 60 * 1000);
+    if (cached) {
+      stormGrid = cached;
+      stormCanvas.redraw();
+      lastStormFetch = Date.now();
+    }
+
     // Batch into requests of ≤ 96 locations (well under Open-Meteo's limit)
     const BATCH = 96;
     const results = new Array(allLats.length);
@@ -287,7 +296,7 @@
                     `&hourly=precipitation&forecast_hours=${STORM_HOURS}` +
                     `&precipitation_unit=inch&timezone=auto`;
         batchPromises.push(
-          fetch(url).then(r => r.json()).then(j => ({ start: s, list: Array.isArray(j) ? j : [j] }))
+          fetchWithRetry(url, `Storm batch ${s}`).then(j => ({ start: s, list: Array.isArray(j) ? j : [j] }))
         );
       }
       const batches = await Promise.all(batchPromises);
@@ -313,6 +322,8 @@
       }
       stormGrid = grid;
       stormCanvas.redraw();
+      cacheSet('mt-storm-v1', grid);
+      lastStormFetch = Date.now();
 
       const el = document.getElementById('storm-stamp');
       if (el) {
@@ -320,13 +331,20 @@
           ? `Forecast: clear next ${STORM_HOURS}h`
           : `Forecast next ${STORM_HOURS}h · peak ${peak.toFixed(2)}″`;
       }
+      console.log(`Storm forecast: ${raining} cells with rain, peak ${peak.toFixed(2)}".`);
     } catch (e) {
+      console.warn('Storm forecast failed:', e);
       const el = document.getElementById('storm-stamp');
-      if (el) el.textContent = 'Forecast: unavailable';
+      if (el) el.textContent = `Forecast: ${e.message || 'unavailable'}`;
+      if (!cached) setTimeout(() => { if (map.hasLayer(stormLayer)) refreshStormForecast(); }, 90000);
     }
   }
-  refreshStormForecast();
-  setInterval(refreshStormForecast, 15 * 60 * 1000);
+  // Only fetch when the storm layer is actually turned on (it's off by
+  // default anyway). Throttle to 5 min so toggling rapidly is fine.
+  stormLayer.on('add', () => {
+    if (Date.now() - lastStormFetch > 5 * 60 * 1000) refreshStormForecast();
+  });
+  setInterval(() => { if (map.hasLayer(stormLayer)) refreshStormForecast(); }, 15 * 60 * 1000);
 
   // ============================================================
   // Wind — SVG arrows at each grid point (direction + speed)
@@ -366,6 +384,41 @@
     });
   }
 
+  // ============================================================
+  // Open-Meteo cache + retry helpers
+  // ============================================================
+  function cacheGet(key, maxAgeMs) {
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      const { t, v } = JSON.parse(raw);
+      if (Date.now() - t > maxAgeMs) return null;
+      return v;
+    } catch (e) { return null; }
+  }
+  function cacheSet(key, v) {
+    try { sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), v })); }
+    catch (e) {}
+  }
+  // Fetch with automatic retry on 429 (exponential backoff up to 4 tries).
+  async function fetchWithRetry(url, label) {
+    const delays = [0, 30000, 60000, 120000]; // ms before each attempt
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i]) await new Promise(r => setTimeout(r, delays[i]));
+      let r;
+      try { r = await fetch(url); }
+      catch (e) { throw new Error(`${label}: network error — ${e.message}`); }
+      if (r.status === 429) {
+        console.warn(`${label}: 429 received, attempt ${i + 1}/${delays.length}`);
+        if (i === delays.length - 1) throw new Error(`${label}: rate-limited (429) after ${delays.length} attempts`);
+        continue;
+      }
+      if (!r.ok) throw new Error(`${label}: HTTP ${r.status}`);
+      return r.json();
+    }
+  }
+
+  let lastWindFetch = 0;
   async function refreshWind() {
     const la1 = 49.0, la2 = 44.4;
     const lo1 = -116.0, lo2 = -104.0;
@@ -381,11 +434,8 @@
     }
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats.join(',')}&longitude=${lngs.join(',')}` +
                 `&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=mph`;
-    try {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error('wind fetch failed');
-      const j = await r.json();
-      const list = Array.isArray(j) ? j : [j];
+
+    function paint(list) {
       windGroup.eachLayer(l => windGroup.removeLayer(l));
       list.forEach((loc, i) => {
         const cw = loc && loc.current;
@@ -394,17 +444,39 @@
         const lng = parseFloat(lngs[i]);
         if (!isInMontana(lat, lng)) return;
         const speed = cw.wind_speed_10m || 0;
-        const dir = cw.wind_direction_10m || 0;
+        const dir   = cw.wind_direction_10m || 0;
         L.marker([lat, lng], {
           icon: windArrowIcon(speed, dir),
           interactive: true, keyboard: false
         }).bindTooltip(`Wind: ${Math.round(speed)} mph from ${Math.round(dir)}°`, { sticky: true })
           .addTo(windGroup);
       });
-    } catch (e) { /* ignore */ }
+    }
+
+    // Cache hit? Show it immediately while we refresh in the background.
+    const cached = cacheGet('mt-wind-v1', 30 * 60 * 1000);
+    if (cached) { paint(cached); lastWindFetch = Date.now(); }
+
+    try {
+      const j = await fetchWithRetry(url, 'Wind');
+      const list = Array.isArray(j) ? j : [j];
+      paint(list);
+      cacheSet('mt-wind-v1', list);
+      lastWindFetch = Date.now();
+      console.log(`Wind: ${list.length} arrows loaded.`);
+    } catch (e) {
+      console.warn(e.message);
+      // If we have nothing on screen (no cache, network failed) keep retrying every 90s.
+      if (!cached) setTimeout(() => { if (map.hasLayer(windGroup)) refreshWind(); }, 90000);
+    }
   }
-  refreshWind();
-  setInterval(refreshWind, 30 * 60 * 1000);
+  // Fetch only when the layer is visible. Refetch on every add, but
+  // throttle to 5 min so toggling rapidly doesn't slam the API.
+  function maybeRefreshWind() {
+    if (Date.now() - lastWindFetch > 5 * 60 * 1000) refreshWind();
+  }
+  windGroup.on('add', maybeRefreshWind);
+  setInterval(() => { if (map.hasLayer(windGroup)) refreshWind(); }, 30 * 60 * 1000);
 
   // ============================================================
   // USFS Trails — hiking/backpacking (NFS) and off-road (MVUM)
@@ -503,22 +575,21 @@
     if (code >= 95) return '⛈';
     return '·';
   };
+  let lastCityWxFetch = 0;
   async function refreshCityWeather() {
     const lats = cities.map(c => c.lat).join(',');
     const lngs = cities.map(c => c.lng).join(',');
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}` +
-                `&current_weather=true&temperature_unit=fahrenheit&windspeed_unit=mph`;
-    try {
-      const r = await fetch(url);
-      const j = await r.json();
-      const list = Array.isArray(j) ? j : [j];
+                `&current=temperature_2m,weather_code&temperature_unit=fahrenheit`;
+
+    function paint(list) {
       wxBadgeLayer.eachLayer(l => wxBadgeLayer.removeLayer(l));
       cities.forEach((c, i) => {
-        const cw = (list[i] && list[i].current_weather) || null;
+        const cw = list[i] && list[i].current;
         if (!cw) return;
         const html = `<div class="wx-badge">
-            <span class="icon">${wxIcon(cw.weathercode)}</span>
-            <span class="temp">${Math.round(cw.temperature)}°F</span>
+            <span class="icon">${wxIcon(cw.weather_code)}</span>
+            <span class="temp">${Math.round(cw.temperature_2m)}°F</span>
             <span class="city"> ${c.name}</span>
           </div>`;
         const marker = L.marker([c.lat, c.lng], {
@@ -527,10 +598,27 @@
         });
         wxBadgeLayer.addLayer(marker);
       });
-    } catch (e) { /* ignore */ }
+    }
+
+    const cached = cacheGet('mt-citywx-v1', 20 * 60 * 1000);
+    if (cached) { paint(cached); lastCityWxFetch = Date.now(); }
+
+    try {
+      const j = await fetchWithRetry(url, 'City temps');
+      const list = Array.isArray(j) ? j : [j];
+      paint(list);
+      cacheSet('mt-citywx-v1', list);
+      lastCityWxFetch = Date.now();
+      console.log(`City temps: loaded ${cities.length} cities.`);
+    } catch (e) {
+      console.warn(e.message);
+      if (!cached) setTimeout(() => { if (map.hasLayer(wxBadgeLayer)) refreshCityWeather(); }, 90000);
+    }
   }
-  refreshCityWeather();
-  setInterval(refreshCityWeather, 10 * 60 * 1000);
+  wxBadgeLayer.on('add', () => {
+    if (Date.now() - lastCityWxFetch > 5 * 60 * 1000) refreshCityWeather();
+  });
+  setInterval(() => { if (map.hasLayer(wxBadgeLayer)) refreshCityWeather(); }, 10 * 60 * 1000);
 
   // ============================================================
   // "BLM land" labels at high zoom — query feature service in view
@@ -1098,10 +1186,71 @@
           window.__deletePin(btn.dataset.id);
         } else if (act === 'inspect-pin') {
           window.__inspectPin(btn.dataset.id);
+        } else if (act === 'load-weather') {
+          window.__loadWeather(parseFloat(btn.dataset.lat), parseFloat(btn.dataset.lng));
         }
       });
     });
   });
+
+  // ============================================================
+  // Lazy weather loader — called from the "Show weather" button
+  // ============================================================
+  window.__loadWeather = async function (lat, lng) {
+    const wxRow      = document.getElementById('wx-row');
+    const lineRow    = document.getElementById('wx-line-row');
+    const lineEl     = document.getElementById('wx-line');
+    const forecastRow = document.getElementById('wx-forecast-row');
+    const forecastEl  = document.getElementById('wx-forecast');
+    if (wxRow) wxRow.style.display = 'none';
+    if (lineRow) lineRow.style.display = '';
+    if (lineEl) { lineEl.textContent = 'loading…'; lineEl.classList.add('loading'); }
+
+    try {
+      const { current: w, daily: d } = await getWeather(lat, lng);
+      if (lineEl) {
+        if (!w) {
+          lineEl.textContent = 'unavailable';
+        } else {
+          const cond = wxCodes[w.weathercode] ?? `code ${w.weathercode}`;
+          lineEl.textContent = `${Math.round(w.temperature)}°F · ${cond} · wind ${Math.round(w.windspeed)} mph`;
+        }
+        lineEl.classList.remove('loading');
+      }
+      if (forecastRow && forecastEl && d && d.time && d.time.length) {
+        const dayNames   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+        forecastEl.innerHTML = d.time.map((iso, i) => {
+          const dt   = new Date(iso + 'T12:00:00');
+          const dow  = dayNames[dt.getDay()];
+          const mon  = monthNames[dt.getMonth()];
+          const dom  = dt.getDate();
+          const hi   = Math.round(d.temperature_2m_max[i]);
+          const lo   = Math.round(d.temperature_2m_min[i]);
+          const code = d.weathercode[i];
+          const pp   = d.precipitation_probability_max ? d.precipitation_probability_max[i] : null;
+          const isToday = iso === todayStr;
+          const dowLabel = isToday ? `Today · ${dow}` : dow;
+          return `<div class="day${isToday ? ' today' : ''}">
+            <div class="dow">${dowLabel}</div>
+            <div class="date">${mon} ${dom}</div>
+            <div class="icon" title="${wxCodes[code] || ''}">${wxIcon(code)}</div>
+            <div><span class="hi">${hi}°</span> / <span class="lo">${lo}°</span></div>
+            ${pp != null ? `<div class="precip">${pp}%💧</div>` : ''}
+          </div>`;
+        }).join('');
+        forecastRow.style.display = '';
+      }
+    } catch (err) {
+      console.warn('Weather fetch failed:', err);
+      if (lineEl) {
+        lineEl.textContent = (err && err.message) ? err.message : 'unavailable';
+        lineEl.classList.remove('loading');
+      }
+    }
+  };
 
   // ============================================================
   // Right-click handler (left-click does nothing / just closes popups)
@@ -1125,8 +1274,13 @@
           <div class="row"><span class="label">Coordinates:</span><br>
             ${lat.toFixed(5)}°, ${lng.toFixed(5)}°
           </div>
-          <div class="row"><span class="label">Weather:</span>
-            <span id="wx-line" class="loading">loading…</span>
+          <div class="row" id="wx-row">
+            <button class="wx-btn" data-action="load-weather" data-lat="${lat}" data-lng="${lng}">
+              ☀️ Show weather & 7-day forecast
+            </button>
+          </div>
+          <div class="row" id="wx-line-row" style="display:none">
+            <span class="label">Weather:</span> <span id="wx-line" class="loading">loading…</span>
           </div>
           <div class="row" id="wx-forecast-row" style="display:none">
             <span class="label">7-day forecast:</span>
@@ -1148,57 +1302,9 @@
       `)
       .openOn(map);
 
-    getWeather(lat, lng).then(({ current: w, daily: d }) => {
-      const el = document.getElementById('wx-line');
-      if (el) {
-        if (!w) { el.textContent = 'unavailable'; el.classList.remove('loading'); }
-        else {
-          const cond = wxCodes[w.weathercode] ?? `code ${w.weathercode}`;
-          el.textContent = `${Math.round(w.temperature)}°F · ${cond} · wind ${Math.round(w.windspeed)} mph`;
-          el.classList.remove('loading');
-        }
-      }
-      // Render 7-day forecast
-      const row = document.getElementById('wx-forecast-row');
-      const grid = document.getElementById('wx-forecast');
-      if (row && grid && d && d.time && d.time.length) {
-        const dayNames   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        // Today in LOCAL time (not UTC) — Open-Meteo returns local-tz dates.
-        const now = new Date();
-        const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-        const html = d.time.map((iso, i) => {
-          const dt   = new Date(iso + 'T12:00:00');
-          const dow  = dayNames[dt.getDay()];
-          const mon  = monthNames[dt.getMonth()];
-          const dom  = dt.getDate();
-          const hi   = Math.round(d.temperature_2m_max[i]);
-          const lo   = Math.round(d.temperature_2m_min[i]);
-          const code = d.weathercode[i];
-          const pp   = d.precipitation_probability_max ? d.precipitation_probability_max[i] : null;
-          const isToday = iso === todayStr;
-          // Show day-of-week (or "Today" for today) and the date together
-          // so there is no ambiguity even if the timezone math is off.
-          const dowLabel = isToday ? `Today · ${dow}` : dow;
-          return `<div class="day${isToday ? ' today' : ''}">
-            <div class="dow">${dowLabel}</div>
-            <div class="date">${mon} ${dom}</div>
-            <div class="icon" title="${wxCodes[code] || ''}">${wxIcon(code)}</div>
-            <div><span class="hi">${hi}°</span> / <span class="lo">${lo}°</span></div>
-            ${pp != null ? `<div class="precip">${pp}%💧</div>` : ''}
-          </div>`;
-        }).join('');
-        grid.innerHTML = html;
-        row.style.display = '';
-      }
-    }).catch((err) => {
-      console.warn('Weather fetch failed:', err);
-      const el = document.getElementById('wx-line');
-      if (el) {
-        el.textContent = (err && err.message) ? err.message : 'unavailable';
-        el.classList.remove('loading');
-      }
-    });
+    // Weather is now lazy: only fetched when the user clicks the
+    // "Show weather" button inside the popup. (handled via the
+    // delegated popupopen handler — see window.__loadWeather below.)
 
     checkBLM(lat, lng).then(res => {
       const el = document.getElementById('blm-line'); if (!el) return;
