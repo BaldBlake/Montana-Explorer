@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in · Montana Explorer</title>
+<link rel="stylesheet" href="css/shared.css">
+</head>
+<body data-page="login">
+
+<nav class="site-nav">
+  <a href="index.html" class="brand"><span class="emoji">🏔</span>Montana Explorer</a>
+  <div class="links">
+    <a href="index.html" data-link="home">Home</a>
+    <a href="map.html" data-link="map">Map</a>
+    <a href="about.html" data-link="about">About</a>
+    <span id="nav-auth-slot"></span>
+  </div>
+</nav>
+
+<main class="page">
+  <div class="form-card">
+    <h2 id="form-title">Log in</h2>
+    <p class="muted" id="form-intro">Welcome back. Sign in to access your saved pins.</p>
+
+    <div id="config-warn" class="form-msg error hidden">
+      Supabase is not configured yet. Edit <code>js/config.js</code> and follow
+      <a href="https://github.com/" target="_blank">SUPABASE_SETUP.md</a>.
+    </div>
+
+    <form id="auth-form" novalidate>
+      <div class="form-row" id="username-row" style="display:none">
+        <label for="username">Username</label>
+        <input type="text" id="username" autocomplete="username" required minlength="2" maxlength="40">
+      </div>
+      <div class="form-row">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required>
+      </div>
+      <div class="form-row">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required minlength="6">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn primary" id="submit-btn">Log in</button>
+      </div>
+      <div id="form-msg" class="form-msg hidden"></div>
+    </form>
+
+    <div class="switch">
+      <span id="switch-text">Don't have an account?</span>
+      <a href="#" id="switch-link">Sign up</a>
+      &nbsp;·&nbsp;
+      <a href="#" id="forgot-link">Forgot password?</a>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <a href="about.html">About</a> · <a href="index.html">Home</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/nav.js"></script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  let mode = params.get('mode') === 'signup' ? 'signup' : 'login';
+
+  const $ = id => document.getElementById(id);
+  const title = $('form-title');
+  const intro = $('form-intro');
+  const submit = $('submit-btn');
+  const switchText = $('switch-text');
+  const switchLink = $('switch-link');
+  const usernameRow = $('username-row');
+  const passwordInput = $('password');
+  const msg = $('form-msg');
+  const cfgWarn = $('config-warn');
+  const form = $('auth-form');
+
+  function setMode(m) {
+    mode = m;
+    if (mode === 'signup') {
+      title.textContent = 'Create your account';
+      intro.textContent = 'Sign up to save pins that sync across every device.';
+      submit.textContent = 'Sign up';
+      switchText.textContent = 'Already have an account?';
+      switchLink.textContent = 'Log in';
+      usernameRow.style.display = '';
+      passwordInput.autocomplete = 'new-password';
+    } else {
+      title.textContent = 'Log in';
+      intro.textContent = 'Welcome back. Sign in to access your saved pins.';
+      submit.textContent = 'Log in';
+      switchText.textContent = "Don't have an account?";
+      switchLink.textContent = 'Sign up';
+      usernameRow.style.display = 'none';
+      passwordInput.autocomplete = 'current-password';
+    }
+    clearMsg();
+  }
+
+  function clearMsg() { msg.className = 'form-msg hidden'; msg.textContent = ''; }
+  function showMsg(kind, text) { msg.className = 'form-msg ' + kind; msg.textContent = text; }
+
+  setMode(mode);
+  switchLink.addEventListener('click', e => {
+    e.preventDefault();
+    setMode(mode === 'login' ? 'signup' : 'login');
+  });
+
+  $('forgot-link').addEventListener('click', async e => {
+    e.preventDefault();
+    const email = $('email').value.trim();
+    if (!email) { showMsg('error', 'Enter your email above, then click Forgot password.'); return; }
+    if (!window.MTAuth.isConfigured()) { cfgWarn.classList.remove('hidden'); return; }
+    try {
+      await window.MTAuth.sendPasswordReset(email);
+      showMsg('success', `Password reset link sent to ${email}. Check your inbox.`);
+    } catch (err) { showMsg('error', err.message || 'Could not send reset email.'); }
+  });
+
+  // Redirect if already signed in
+  (async function () {
+    if (!window.MTAuth.isConfigured()) {
+      cfgWarn.classList.remove('hidden');
+      return;
+    }
+    await window.MTAuth.ready;
+    if (window.MTAuth.getSession()) location.href = 'map.html';
+  })();
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    clearMsg();
+    if (!window.MTAuth.isConfigured()) { cfgWarn.classList.remove('hidden'); return; }
+    const email = $('email').value.trim();
+    const password = $('password').value;
+    const username = $('username').value.trim();
+    if (mode === 'signup' && username.length < 2) { showMsg('error', 'Pick a username with at least 2 characters.'); return; }
+    if (password.length < 6) { showMsg('error', 'Password must be at least 6 characters.'); return; }
+    submit.disabled = true;
+    submit.textContent = mode === 'signup' ? 'Creating account…' : 'Signing in…';
+    try {
+      if (mode === 'signup') {
+        const result = await window.MTAuth.signUp(email, password, username);
+        if (result.session) {
+          location.href = 'map.html';
+        } else {
+          showMsg('success', `Account created. Check ${email} to confirm your address, then log in.`);
+          setMode('login');
+        }
+      } else {
+        await window.MTAuth.signIn(email, password);
+        location.href = 'map.html';
+      }
+    } catch (err) {
+      showMsg('error', err.message || 'Something went wrong.');
+    } finally {
+      submit.disabled = false;
+      submit.textContent = mode === 'signup' ? 'Sign up' : 'Log in';
+    }
+  });
+})();
+</script>
+</body>
+</html>

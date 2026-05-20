@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About · Montana Explorer</title>
+<link rel="stylesheet" href="css/shared.css">
+</head>
+<body data-page="about">
+
+<nav class="site-nav">
+  <a href="index.html" class="brand"><span class="emoji">🏔</span>Montana Explorer</a>
+  <div class="links">
+    <a href="index.html" data-link="home">Home</a>
+    <a href="map.html" data-link="map">Map</a>
+    <a href="about.html" data-link="about">About</a>
+    <span id="nav-auth-slot"></span>
+  </div>
+</nav>
+
+<main class="page prose">
+  <h1>About Montana Explorer</h1>
+
+  <p>
+    Montana Explorer is a free, open interactive map that brings together public data on
+    Montana's public lands, wildlife, weather, and trails. It runs entirely in your browser —
+    no tracking, no ads, no backend of our own. Sign in to sync your saved pins across
+    every device.
+  </p>
+
+  <h2>Data sources</h2>
+  <ul>
+    <li><strong>BLM land</strong> — <a href="https://gis.blm.gov/arcgis/rest/services/lands/BLM_Natl_SMA_Cached_BLM_Only/MapServer" target="_blank">BLM National Surface Management Agency (BLM Only)</a> cached tile + feature service.</li>
+    <li><strong>Bear habitat</strong> — Montana Fish, Wildlife & Parks Open Data Hub:
+      <a href="https://gis-mtfwp.opendata.arcgis.com/datasets/b59040cc67f742f1a0f1e72c05b2892b_0" target="_blank">Black &amp; Grizzly Distribution</a>,
+      <a href="https://gis-mtfwp.hub.arcgis.com/items/99caeb3d67784cf38efb242ebadf2a07" target="_blank">Grizzly Recovery Zones</a>,
+      <a href="https://gis-mtfwp.hub.arcgis.com/items/2eb92794edfd44b492053d8c770a308d" target="_blank">Estimated Occupied Range 2022</a>.</li>
+    <li><strong>USFS campsites &amp; trails</strong> — USFS Enterprise Data Warehouse:
+      <a href="https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_RecreationOpportunities_01/MapServer/0" target="_blank">Recreation Opportunities</a>,
+      <a href="https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_TrailNFSPublish_01/MapServer/0" target="_blank">National Forest System Trails</a>,
+      <a href="https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_MVUM_01/MapServer/2" target="_blank">Motor Vehicle Use Map Trails</a>.</li>
+    <li><strong>Live radar</strong> — NEXRAD base reflectivity tiles via
+      <a href="https://mesonet.agron.iastate.edu/" target="_blank">Iowa State Mesonet</a>.</li>
+    <li><strong>Storm forecast</strong> — hourly precipitation grid from
+      <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a>, rendered with bilinear interpolation.</li>
+    <li><strong>Weather &amp; wind</strong> — current conditions, 7-day forecast, and grid wind from Open-Meteo.</li>
+    <li><strong>Geocoding (search)</strong> — <a href="https://nominatim.openstreetmap.org/" target="_blank">Nominatim</a> (OpenStreetMap).</li>
+    <li><strong>Base maps</strong> — <a href="https://www.openstreetmap.org/" target="_blank">OpenStreetMap</a>, <a href="https://opentopomap.org/" target="_blank">OpenTopoMap</a>, and Esri World Imagery (satellite).</li>
+    <li><strong>Montana boundary</strong> — U.S. Census via <a href="https://github.com/glynnbird/usstatesgeojson" target="_blank">usstatesgeojson</a>.</li>
+  </ul>
+
+  <h2>How features work</h2>
+
+  <h3>Click for details</h3>
+  <p>
+    Right-click anywhere on the map to open a popup with the exact coordinates, current
+    weather, a 7-day forecast, whether the point is on BLM land (and which administrative
+    unit), and the bear-encounter likelihood.
+  </p>
+
+  <h3>Bear likelihood</h3>
+  <p>The tier comes from the MT FWP services in this order:</p>
+  <ul>
+    <li><strong>Very High</strong> — inside an official Grizzly Recovery Zone (NCDE, Greater Yellowstone, Cabinet–Yaak, etc.)</li>
+    <li><strong>High</strong> — inside the 2022 Grizzly Estimated Occupied Range</li>
+    <li><strong>Moderate</strong> — inside a Generalized Distribution polygon (black bear, grizzly, or both)</li>
+    <li><strong>Low</strong> — outside all mapped ranges</li>
+  </ul>
+
+  <h3>BLM identify</h3>
+  <p>
+    The yellow BLM tiles come from BLM's cached map service. When you click, we query the
+    feature layer at that exact point and read back the <code>ADMIN_UNIT_NAME</code> field
+    so the popup can show the parcel's name. At zoom 9 and above the map also drops
+    "BLM" badges on each parcel's centroid (capped to keep things readable).
+  </p>
+
+  <h3>Storm forecast (next 4 hr)</h3>
+  <p>
+    Open-Meteo is queried for hourly precipitation forecasts on a 24×16 grid across
+    Montana. For every screen pixel we bilinearly interpolate between the four nearest
+    grid samples, then color the pixel by peak precipitation in the next four hours. The
+    result is a smooth continuous wash, not blocky cells.
+  </p>
+
+  <h3>Saved pins &amp; accounts</h3>
+  <p>
+    If you are <strong>signed in</strong>, pins are stored in your account on Supabase
+    and sync to every browser you log in on. If you are <strong>not signed in</strong>,
+    pins fall back to your browser's <code>localStorage</code> under the key
+    <code>mt-map-pins-v1</code> — that means they live on that device only.
+  </p>
+
+  <h2>Privacy</h2>
+  <p>
+    Montana Explorer has no analytics, no third-party scripts, and no advertising. The
+    only data we collect is what you choose to save while signed in (your email,
+    username, and the coordinates/labels of your pins). All of it is stored in your
+    Supabase project and is only readable by you — admins can list users for account
+    management but cannot see the contents of your private pins unless you make them so.
+  </p>
+
+  <h2>License &amp; attribution</h2>
+  <p>
+    All data is © its respective providers (BLM, USFS, Montana FWP, NOAA, OpenStreetMap,
+    Esri, etc.) and used under each provider's terms. The site itself is open-source
+    and available on GitHub — see the project README for license details.
+  </p>
+</main>
+
+<footer class="site-footer">
+  <a href="index.html">Home</a> · <a href="map.html">Map</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/nav.js"></script>
+</body>
+</html>

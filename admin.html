@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · Montana Explorer</title>
+<link rel="stylesheet" href="css/shared.css">
+<style>
+  .admin-toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .admin-toolbar input {
+    flex: 1; min-width: 200px;
+    padding: 8px 10px;
+    border: 1px solid var(--mt-border); border-radius: 6px;
+    font-size: 1rem; font-family: inherit;
+  }
+  .admin-stats {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .stat-card {
+    flex: 1; min-width: 140px;
+    background: #fff; border: 1px solid var(--mt-border);
+    border-radius: 8px; padding: 14px;
+    box-shadow: var(--mt-shadow);
+  }
+  .stat-card .num { font-size: 1.7rem; font-weight: 800; }
+  .stat-card .lbl { color: var(--mt-muted); font-size: .85rem; }
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1500;
+  }
+  .modal-card {
+    background: #fff; border-radius: 10px; padding: 24px;
+    max-width: 460px; width: 90%;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.25);
+  }
+  .modal-card h3 { margin-top: 0; }
+  .modal-card .close-x {
+    float: right; background: none; border: 0; font-size: 1.4rem; cursor: pointer; color: #777;
+  }
+</style>
+</head>
+<body data-page="admin">
+
+<nav class="site-nav">
+  <a href="index.html" class="brand"><span class="emoji">🏔</span>Montana Explorer</a>
+  <div class="links">
+    <a href="index.html" data-link="home">Home</a>
+    <a href="map.html" data-link="map">Map</a>
+    <a href="about.html" data-link="about">About</a>
+    <span id="nav-auth-slot"></span>
+  </div>
+</nav>
+
+<main class="page">
+  <h1>Admin</h1>
+
+  <div id="not-admin" class="form-card hidden">
+    <h2>Not authorized</h2>
+    <p class="muted">This page is only available to administrators. If you believe you should have access, ask another admin to promote your account from this panel.</p>
+    <a class="btn primary" href="index.html">Back to home</a>
+  </div>
+
+  <div id="admin-ui" class="hidden">
+    <div class="admin-stats">
+      <div class="stat-card"><div class="num" id="stat-users">—</div><div class="lbl">total users</div></div>
+      <div class="stat-card"><div class="num" id="stat-admins">—</div><div class="lbl">admins</div></div>
+      <div class="stat-card"><div class="num" id="stat-pins">—</div><div class="lbl">pins saved</div></div>
+    </div>
+
+    <div class="admin-toolbar">
+      <input type="search" id="filter" placeholder="Search by username or email…">
+      <button type="button" class="btn secondary" id="refresh">Refresh</button>
+    </div>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Username</th>
+          <th>Role</th>
+          <th>Pins</th>
+          <th>Joined</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody">
+        <tr><td colspan="6" class="muted center">Loading…</td></tr>
+      </tbody>
+    </table>
+
+    <div id="admin-msg" class="form-msg hidden" style="margin-top:14px"></div>
+  </div>
+</main>
+
+<div id="modal-host"></div>
+
+<footer class="site-footer">
+  Admin actions are governed by row-level security policies in Supabase.
+  Sensitive operations (account deletion, direct password override) require the
+  Supabase dashboard.
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/nav.js"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  let allUsers = [];
+
+  function fmtDate(d) { return d ? new Date(d).toLocaleDateString() : '—'; }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+  function showMsg(kind, text) {
+    const el = $('admin-msg'); el.className = 'form-msg ' + kind; el.textContent = text;
+    setTimeout(() => { if (el.textContent === text) el.className = 'form-msg hidden'; }, 5000);
+  }
+
+  function render() {
+    const q = $('filter').value.trim().toLowerCase();
+    const tbody = $('users-tbody');
+    const rows = allUsers.filter(u =>
+      !q || (u.email || '').toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q)
+    );
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted center">No users match.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(u => `
+      <tr data-uid="${u.id}">
+        <td>${escapeHtml(u.email)}</td>
+        <td>${escapeHtml(u.username || '')}</td>
+        <td><span class="role-pill ${u.role}">${u.role}</span></td>
+        <td>${u.pin_count ?? 0}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>
+          <button class="action-btn" data-act="edit">Edit name</button>
+          <button class="action-btn" data-act="role">${u.role === 'admin' ? 'Demote' : 'Promote'}</button>
+          <button class="action-btn" data-act="reset">Reset pw</button>
+        </td>
+      </tr>
+    `).join('');
+    tbody.onclick = onTableClick;
+  }
+
+  async function onTableClick(e) {
+    const btn = e.target.closest('button'); if (!btn) return;
+    const tr = btn.closest('tr'); if (!tr) return;
+    const uid = tr.dataset.uid;
+    const user = allUsers.find(u => u.id === uid); if (!user) return;
+    if (btn.dataset.act === 'edit')   return editUsername(user);
+    if (btn.dataset.act === 'role')   return toggleRole(user);
+    if (btn.dataset.act === 'reset')  return sendReset(user);
+  }
+
+  async function editUsername(user) {
+    const next = prompt(`New username for ${user.email}:`, user.username || '');
+    if (next == null) return;
+    const v = next.trim();
+    if (v.length < 2) return showMsg('error', 'Username must be at least 2 characters.');
+    try {
+      await window.MTAuth.admin.setUsername(user.id, v);
+      user.username = v;
+      render();
+      showMsg('success', `Updated username for ${user.email}.`);
+    } catch (e) { showMsg('error', e.message); }
+  }
+
+  async function toggleRole(user) {
+    const next = user.role === 'admin' ? 'user' : 'admin';
+    if (!confirm(`Set ${user.email} to ${next}?`)) return;
+    try {
+      await window.MTAuth.admin.setRole(user.id, next);
+      user.role = next;
+      render(); refreshStats();
+      showMsg('success', `${user.email} is now ${next}.`);
+    } catch (e) { showMsg('error', e.message); }
+  }
+
+  async function sendReset(user) {
+    if (!confirm(`Send a password-reset email to ${user.email}? They will set their own new password from the email.`)) return;
+    try {
+      await window.MTAuth.admin.sendPasswordReset(user.email);
+      showMsg('success', `Reset email sent to ${user.email}.`);
+    } catch (e) { showMsg('error', e.message); }
+  }
+
+  function refreshStats() {
+    $('stat-users').textContent  = allUsers.length;
+    $('stat-admins').textContent = allUsers.filter(u => u.role === 'admin').length;
+    $('stat-pins').textContent   = allUsers.reduce((n, u) => n + (u.pin_count || 0), 0);
+  }
+
+  async function load() {
+    try {
+      const data = await window.MTAuth.admin.listUsers();
+      allUsers = data || [];
+      refreshStats();
+      render();
+    } catch (e) {
+      $('users-tbody').innerHTML = `<tr><td colspan="6" class="form-msg error">${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  async function init() {
+    await window.MTAuth.ready;
+    const session = window.MTAuth.getSession();
+    if (!session) { location.href = 'login.html'; return; }
+    if (!window.MTAuth.isAdmin()) {
+      $('not-admin').classList.remove('hidden');
+      return;
+    }
+    $('admin-ui').classList.remove('hidden');
+    $('filter').addEventListener('input', render);
+    $('refresh').addEventListener('click', load);
+    await load();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
