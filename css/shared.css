@@ -78,20 +78,23 @@ h3 { font-size: 1.15rem; }
 
 /* ---------- Hero ---------- */
 .hero {
-  padding: 80px 24px 60px;
+  padding: 120px 24px 104px;
   text-align: center;
+  /* Montana landscape photo behind a warm paper scrim so dark text stays legible */
   background:
-    radial-gradient(ellipse at top, rgba(42,111,77,0.10), transparent 60%),
-    linear-gradient(180deg, #fafaf7 0%, #f0ecdf 100%);
+    linear-gradient(180deg, rgba(250,250,247,0.80) 0%, rgba(250,250,247,0.46) 42%, rgba(31,41,51,0.22) 100%),
+    url('../assets/hero.jpg') center 38% / cover no-repeat;
   border-bottom: 1px solid var(--mt-border);
 }
 .hero h1 {
   max-width: 760px; margin: 0 auto .5em;
   font-size: clamp(2rem, 5vw, 3.4rem);
+  text-shadow: 0 1px 2px rgba(255,255,255,0.5);
 }
 .hero .subhead {
-  font-size: 1.15rem; color: var(--mt-muted);
+  font-size: 1.15rem; color: #41464d;
   max-width: 620px; margin: 0 auto 2em;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.6);
 }
 .hero .ctas { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .btn {
@@ -132,6 +135,46 @@ h3 { font-size: 1.15rem; }
 .feature-card .icon { font-size: 2rem; margin-bottom: 8px; display: block; }
 .feature-card h3 { margin: 4px 0 6px; }
 .feature-card p { margin: 0; color: var(--mt-muted); font-size: .95rem; }
+
+/* ---------- "Save spots" CTA with photo background ---------- */
+.savespots-bg {
+  /* Full-bleed: break out of the .section 1080px max-width so the photo
+     spans the entire viewport width. Inner text stays centered. */
+  max-width: none;
+  padding-top: 96px;
+  padding-bottom: 96px;
+  background:
+    linear-gradient(180deg, rgba(31,41,51,0.58) 0%, rgba(31,41,51,0.48) 100%),
+    url('../assets/savespots-bg.jpg') center / cover no-repeat;
+  border-top: 1px solid var(--mt-border);
+  border-bottom: 1px solid var(--mt-border);
+}
+.savespots-bg h2 { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.45); }
+.savespots-bg .muted {
+  color: #eef0ee !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
+/* ---------- Past-adventures gallery ---------- */
+.gallery-section { text-align: center; }
+.gallery-blurb { max-width: 580px; margin: 0 auto 28px; }
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  max-width: 940px;
+  margin: 0 auto;
+}
+.gallery-grid img {
+  width: 100%;
+  aspect-ratio: 1 / 1;       /* uniform squares regardless of source size */
+  object-fit: cover;          /* center-crop, no distortion */
+  border-radius: 10px;
+  border: 1px solid var(--mt-border);
+  box-shadow: var(--mt-shadow);
+  display: block;
+  background: var(--mt-chip-bg, #f0eee8);
+}
 
 /* ---------- Data-source strip ---------- */
 .data-strip {
@@ -359,6 +402,14 @@ h3 { font-size: 1.15rem; }
    ============================================================= */
 .mobile-landing { display: none; }
 
+/* Montana photo behind the mobile landing, under a heavy paper scrim
+   so the white cards and text stay fully legible. */
+.mobile-landing.has-hero-bg {
+  background:
+    linear-gradient(180deg, rgba(250,250,247,0.86) 0%, rgba(250,250,247,0.93) 30%, rgba(250,250,247,0.97) 100%),
+    url('../assets/hero.jpg') top center / cover no-repeat fixed;
+}
+
 .mobile-landing .m-section {
   padding: 16px 16px;
   border-bottom: 1px dashed var(--mt-border);
@@ -481,6 +532,9 @@ h3 { font-size: 1.15rem; }
 @media (max-width: 720px) {
   .desktop-landing { display: none !important; }
   .mobile-landing { display: block; }
+  /* Gallery shows 2 squares per row on phones */
+  .gallery-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gallery-section { border-top: 1px dashed var(--mt-border); }
 }
 
 /* ---------- Tiny phones ≤ 380px ---------- */

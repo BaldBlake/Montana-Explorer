@@ -24,7 +24,7 @@
      MOBILE LANDING — V2 · Map-first (from Landing Wireframes)
      Only renders on screens ≤ 720px. Desktop is untouched.
      ========================================================= -->
-<div class="mobile-landing">
+<div class="mobile-landing has-hero-bg">
 
   <!-- Map preview → tap to open the map -->
   <section class="m-section m-map-section">
@@ -43,17 +43,13 @@
   <section class="m-section">
     <h2>Popular destinations</h2>
     <ul class="m-pin-list">
-      <li><span class="m-pin-marker" style="color:var(--mt-accent)">📍</span>
-          <span class="m-pin-name">Cliff Lake</span>
+      <li><span class="m-pin-name">Cliff Lake</span>
           <span class="m-pin-meta">Madison Range</span></li>
-      <li><span class="m-pin-marker" style="color:var(--mt-accent)">📍</span>
-          <span class="m-pin-name">Pintler Wilderness</span>
+      <li><span class="m-pin-name">Pintler Wilderness</span>
           <span class="m-pin-meta">Beaverhead-Deerlodge NF</span></li>
-      <li><span class="m-pin-marker" style="color:var(--mt-accent)">📍</span>
-          <span class="m-pin-name">Beartooth Pass</span>
+      <li><span class="m-pin-name">Beartooth Pass</span>
           <span class="m-pin-meta">Custer-Gallatin NF</span></li>
-      <li><span class="m-pin-marker" style="color:var(--mt-accent)">📍</span>
-          <span class="m-pin-name">Glacier National Park</span>
+      <li><span class="m-pin-name">Glacier National Park</span>
           <span class="m-pin-meta">NW Montana</span></li>
     </ul>
   </section>
@@ -62,22 +58,10 @@
   <section class="m-section">
     <h2>Quick actions</h2>
     <div class="m-qa-grid">
-      <a href="map.html" class="m-qa-tile">
-        <span class="m-qa-icon" style="color:#2a6f4d">▲</span>
-        <span class="m-qa-label">Find a camp</span>
-      </a>
-      <a href="map.html" class="m-qa-tile">
-        <span class="m-qa-icon" style="color:#c0398d">●</span>
-        <span class="m-qa-label">See bears</span>
-      </a>
-      <a href="map.html" class="m-qa-tile">
-        <span class="m-qa-icon" style="color:#3388ff">◎</span>
-        <span class="m-qa-label">Weather now</span>
-      </a>
-      <a href="map.html" class="m-qa-tile">
-        <span class="m-qa-icon" style="color:#b8860b">▮</span>
-        <span class="m-qa-label">BLM check</span>
-      </a>
+      <a href="map.html" class="m-qa-tile"><span class="m-qa-label">Find a camp</span></a>
+      <a href="map.html" class="m-qa-tile"><span class="m-qa-label">See bears</span></a>
+      <a href="map.html" class="m-qa-tile"><span class="m-qa-label">Weather now</span></a>
+      <a href="map.html" class="m-qa-tile"><span class="m-qa-label">BLM check</span></a>
     </div>
   </section>
 
@@ -119,35 +103,46 @@
   <h2>What's on the map</h2>
   <div class="feature-grid">
     <div class="feature-card">
-      <span class="icon">🟧</span>
       <h3>BLM land</h3>
       <p>Every Bureau of Land Management parcel in Montana, fed live from the BLM National SMA service. Click anywhere to find out if a point is BLM-administered.</p>
     </div>
     <div class="feature-card">
-      <span class="icon">🐻</span>
       <h3>Bear habitat</h3>
       <p>Official MT FWP grizzly recovery zones, 2022 estimated occupied range, and the generalized black/grizzly distribution layers. Click for likelihood at any spot.</p>
     </div>
     <div class="feature-card">
-      <span class="icon">🏕</span>
       <h3>Campsites & trails</h3>
       <p>USFS developed campsites plus the National Forest System Trail network and Motor Vehicle Use Map for off-road routes.</p>
     </div>
     <div class="feature-card">
-      <span class="icon">🌧</span>
       <h3>Live NEXRAD radar</h3>
       <p>Current precipitation radar refreshed every 5 minutes, with smooth zoom interpolation and zoom-friendly tiles.</p>
     </div>
     <div class="feature-card">
-      <span class="icon">🔮</span>
       <h3>4-hour storm forecast</h3>
       <p>Bilinear-interpolated rainfall forecast across Montana from Open-Meteo — see where weather is heading hours before it arrives.</p>
     </div>
     <div class="feature-card">
-      <span class="icon">💨</span>
       <h3>Wind & temperatures</h3>
       <p>Live wind direction and speed arrows across the state, plus current temperature badges over every major city.</p>
     </div>
+  </div>
+</section>
+
+<!-- =========================================================
+     PAST ADVENTURES gallery — shows on desktop + mobile
+     Square, uniform tiles (CSS crops any aspect ratio).
+     ========================================================= -->
+<section class="section gallery-section">
+  <h2>Past adventures</h2>
+  <p class="muted gallery-blurb">
+    A few trips across Montana's backcountry and public lands — snowbound passes,
+    forest trails, and high alpine valleys. Open the map to plan your own.
+  </p>
+  <div class="gallery-grid">
+    <img src="assets/gallery/adventure1.jpg" alt="Ford Bronco on a snowy Montana hillside below the mountains" loading="lazy">
+    <img src="assets/gallery/adventure2.jpg" alt="Backpacker on a gravel wash below snow-capped peaks" loading="lazy">
+    <img src="assets/gallery/adventure3.jpg" alt="Mountain lake at dusk in a Montana valley" loading="lazy">
   </div>
 </section>
 
@@ -164,7 +159,7 @@
   </div>
 </div>
 
-<section class="section center desktop-landing">
+<section class="section center desktop-landing savespots-bg">
   <h2>Save spots to come back to</h2>
   <p class="muted" style="max-width:560px;margin:0 auto 24px">
     Create a free account to pin campsites, trailheads, hunting blocks, or anywhere else.
